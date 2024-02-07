@@ -1,5 +1,9 @@
 #include <WiFi.h>
 #include "Sensitive.h"
+#include "time.h"
+#include <HTTPClient.h>
+#include <base64.h>
+
 // WiFi network name and password:
 const char * networkName = WIFI_NAME;
 const char * networkPswd = WIFI_PASSWORD;
@@ -7,6 +11,9 @@ const char * networkPswd = WIFI_PASSWORD;
 // Internet domain to request from:
 const char * hostDomain = "example.com";
 const int hostPort = 80;
+
+const char * ntpServer = "pool.ntp.org";
+unsigned long epochTime;
 
 const int BUTTON_PIN = 0;
 const int LED_PIN = 13;
@@ -21,9 +28,12 @@ void setup()
   // Connect to the WiFi network (see function below loop)
   connectToWiFi(networkName, networkPswd);
 
-  digitalWrite(LED_PIN, LOW); // LED off
-  Serial.print("Press button 0 to connect to ");
-  Serial.println(hostDomain);
+  //digitalWrite(LED_PIN, LOW); // LED off
+  //Serial.print("Press button 0 to connect to ");
+  //Serial.println(hostDomain);
+
+  configTime(0, 0, ntpServer);
+
 }
 
 void loop()
@@ -33,10 +43,46 @@ void loop()
     while (digitalRead(BUTTON_PIN) == LOW)
       ; // Wait for button to be released
 
-    digitalWrite(LED_PIN, HIGH); // Turn on LED
-    requestURL(hostDomain, hostPort); // Connect to server
-    digitalWrite(LED_PIN, LOW); // Turn off LED
+    //digitalWrite(LED_PIN, HIGH); // Turn on LED
+    //requestURL(hostDomain, hostPort); // Connect to server
+    //digitalWrite(LED_PIN, LOW); // Turn off LED
+    epochTime = getTime();
+    char buff[40];
+    sprintf(buff, "%lu", epochTime);
+
+    Serial.println(buff);
+
+    String encoded = base64::encode(buff);
+
+    Serial.println(encoded);
+
+    String message = "{\"messages\":[{\"data\": \"" + encoded + "\"}]}";
+
+    Serial.println(message);
+
+    HTTPClient http;
+    http.begin(PUBSUB_POST_URL);
+    http.addHeader("Authorization", PUBSUB_ACCESS_TOKEN);
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("Connection", "keep-alive");
+    int httpResponseCode = http.POST(message.c_str());
+    //int httpResponseCode = http.POST("{\"url\": \"https://www.jsulzsss.com\"}");
+    //int httpResponseCode = http.GET();
+    Serial.println(httpResponseCode);
+    http.end();
   }
+}
+
+// Function that gets current epoch time
+unsigned long getTime() {
+  time_t now;
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    //Serial.println("Failed to obtain time");
+    return(0);
+  }
+  time(&now);
+  return now;
 }
 
 void connectToWiFi(const char * ssid, const char * pwd)
