@@ -16,3 +16,5 @@ All of the parts for this project are:
 - USB A to USB C adapter + charger
 
 All of this is sitting right outside the dog door to the backyard. To read more, check out the [About page on Doogledoor](https://doogledoor.com/about).
+
+Note: If you are viewing this project for inspiration, many of the sensitive credentials (wifi name, password, the REST endpoint and access token for the application, etc) are held in a header file - `Sensitive.h` - that is ignored from version control. You'll need to recreate this file locally yourself.
