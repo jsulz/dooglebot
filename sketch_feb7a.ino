@@ -17,6 +17,8 @@ unsigned long epochTime;
 
 const int BUTTON_PIN = 0;
 const int LED_PIN = 13;
+const int PIR_DOUT = 3;
+int SEND = 0;
 
 void setup()
 {
@@ -24,6 +26,7 @@ void setup()
   Serial.begin(115200);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   pinMode(LED_PIN, OUTPUT);
+  pinMode(PIR_DOUT, INPUT);
 
   // Connect to the WiFi network (see function below loop)
   connectToWiFi(networkName, networkPswd);
@@ -38,39 +41,72 @@ void setup()
 
 void loop()
 {
-  if (digitalRead(BUTTON_PIN) == LOW)
-  { // Check if button has been pressed
-    while (digitalRead(BUTTON_PIN) == LOW)
-      ; // Wait for button to be released
+  readDigitalValue(); 
 
-    //digitalWrite(LED_PIN, HIGH); // Turn on LED
-    //requestURL(hostDomain, hostPort); // Connect to server
-    //digitalWrite(LED_PIN, LOW); // Turn off LED
-    epochTime = getTime();
+}
+
+void readDigitalValue()
+{
+  // The OpenPIR's digital output is active high
+  int motionStatus = digitalRead(PIR_DOUT);
+
+  // If motion is detected, turn the onboard LED on:
+  if (motionStatus == HIGH){
+    //Serial.println("High");
+    if (SEND == 0){
+      epochTime = getTime();
+      String strEpoch = timeToString(epochTime);
+
+      String encoded = encodeTime(strEpoch);
+
+      String message = buildMessage(encoded);
+
+      int httpResponse = sendPOST(message);
+
+      Serial.println(httpResponse);
+
+      SEND = 1;
+    }
+  }
+  else{ // Otherwise turn the LED off:{
+    //Serial.println("Low");
+    SEND = 0;
+  }
+}
+
+int sendPOST(String messageBody) {
+  char url[80];
+  strcpy(url, HOST);
+  strcat(url, REST_ENDPOINT);
+  HTTPClient http;
+  http.setTimeout(5000);
+  http.begin(url);
+  http.addHeader("Authorization", REST_ACCESS_TOKEN);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Connection", "keep-alive");
+  int httpResponseCode = http.POST(messageBody.c_str());
+  //int httpResponseCode = http.GET();
+  http.end();
+  return httpResponseCode;
+}
+
+String buildMessage(String encoded) {
+  String message = "{\"messages\":{\"data\": \"" + encoded + "\"}}";
+  Serial.println(message);
+  return message;
+}
+
+String encodeTime(String time) {
+ String encoded = base64::encode(time);
+ return encoded;
+}
+
+String timeToString(unsigned long epochTime) {
+
     char buff[40];
     sprintf(buff, "%lu", epochTime);
+    return buff;
 
-    Serial.println(buff);
-
-    String encoded = base64::encode(buff);
-
-    Serial.println(encoded);
-
-    String message = "{\"messages\":[{\"data\": \"" + encoded + "\"}]}";
-
-    Serial.println(message);
-
-    HTTPClient http;
-    http.begin(PUBSUB_POST_URL);
-    http.addHeader("Authorization", PUBSUB_ACCESS_TOKEN);
-    http.addHeader("Content-Type", "application/json");
-    http.addHeader("Connection", "keep-alive");
-    int httpResponseCode = http.POST(message.c_str());
-    //int httpResponseCode = http.POST("{\"url\": \"https://www.jsulzsss.com\"}");
-    //int httpResponseCode = http.GET();
-    Serial.println(httpResponseCode);
-    http.end();
-  }
 }
 
 // Function that gets current epoch time
@@ -107,48 +143,6 @@ void connectToWiFi(const char * ssid, const char * pwd)
   Serial.println("WiFi connected!");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
-}
-
-void requestURL(const char * host, uint8_t port)
-{
-  printLine();
-  Serial.println("Connecting to domain: " + String(host));
-
-  // Use WiFiClient class to create TCP connections
-  WiFiClient client;
-  if (!client.connect(host, port))
-  {
-    Serial.println("connection failed");
-    return;
-  }
-  Serial.println("Connected!");
-  printLine();
-
-  // This will send the request to the server
-  client.print((String)"GET / HTTP/1.1\r\n" +
-               "Host: " + String(host) + "\r\n" +
-               "Connection: close\r\n\r\n");
-  unsigned long timeout = millis();
-  while (client.available() == 0) 
-  {
-    if (millis() - timeout > 5000) 
-    {
-      Serial.println(">>> Client Timeout !");
-      client.stop();
-      return;
-    }
-  }
-
-  // Read all the lines of the reply from server and print them to Serial
-  while (client.available()) 
-  {
-    String line = client.readStringUntil('\r');
-    Serial.print(line);
-  }
-
-  Serial.println();
-  Serial.println("closing connection");
-  client.stop();
 }
 
 void printLine()
