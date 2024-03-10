@@ -41,7 +41,26 @@ void setup()
 
 void loop()
 {
+  checkAndConnect();
   readDigitalValue(); 
+
+}
+
+// Make sure we're connected to the wifi, and if we're not, hammer away, spinning on a relatively long delay
+void checkAndConnect()
+{
+
+  if(Wifi.status() != WL_CONNECTED){
+    WiFi.begin(ssid, pwd);
+    while (WiFi.status() != WL_CONNECTED) 
+    {
+      // Blink LED while we're connecting:
+      digitalWrite(LED_PIN, ledState);
+      ledState = (ledState + 1) % 2; // Flip ledState
+      delay(5000);
+      Serial.print(".");
+    }
+  }
 
 }
 
